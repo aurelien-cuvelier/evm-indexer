@@ -30,7 +30,12 @@ export class EVMIndexer {
       this.logger.warn(`Indexer is sleeping`);
       return;
     }
-    this.rpcs = init.rpcs;
+    this.rpcs = [...(this.config.rpcs || []), ...init.rpcs];
+
+    if (this.rpcs.length > 1) {
+      //Remove duplicate RPC if any
+      this.rpcs = this.rpcs.filter((rpc, i) => i === this.rpcs.indexOf(rpc));
+    }
     this.chain = init.chain;
     this.logger.info(
       `Starting to work on chain #${this.config.chain_id} ${
