@@ -1,16 +1,18 @@
 import fs from "fs";
-import { Logger } from "pino";
 import { IndexerConfig } from "./configs/models";
+import { globalLogger } from "./logger";
 import { indexerConfigSchema } from "./schemas";
 
-export function getConfig(logger: Logger, name: string): IndexerConfig | null {
+export function getConfig(name = "default"): IndexerConfig[] {
   if (!name.includes(".json")) {
     name += ".json";
   }
   const filePath = `src/configs/${name}`;
   if (!fs.existsSync(filePath)) {
-    logger.error(`Config file "${name}" in "configs/" not found!`);
-    return null;
+    globalLogger.fatal(
+      `Config file "${name}" in "configs/" not found! Exiting process...`
+    );
+    process.exit(1);
   }
 
   try {
@@ -19,14 +21,18 @@ export function getConfig(logger: Logger, name: string): IndexerConfig | null {
       indexerConfigSchema.safeParse(loadedConfig);
 
     if (error) {
-      logger.error(`Config file "${name}" is invalid!`);
-      return null;
+      globalLogger.fatal(
+        `Config file "${name}" is invalid! Exiting process...`
+      );
+      process.exit(1);
     }
 
-    logger.info({ indexerConfig }, `Loaded config file "${name}"`);
+    globalLogger.info({ indexerConfig }, `Loaded config file "${name}"`);
     return indexerConfig;
   } catch (e) {
-    logger.error(`Config file "${name}" contains invalid json!`);
+    globalLogger.fatal(
+      `Config file "${name}" contains invalid json! Exiting process...`
+    );
+    process.exit(1);
   }
-  return null;
 }

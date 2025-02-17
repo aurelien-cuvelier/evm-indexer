@@ -1,4 +1,7 @@
-{
-  "chain_id": 1,
-  "events": true
-}
+[
+  {
+    "chain_id": 1,
+    "events": true,
+    "name": "chadexer"
+  }
+]

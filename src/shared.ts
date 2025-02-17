@@ -1,7 +1,7 @@
 import { LoggerOptions } from "pino";
 import * as genShortUUID from "short-uuid";
 
-const BACKEND_ID = genShortUUID.generate();
+export const BACKEND_ID = genShortUUID.generate();
 
 export const LOGGER_CONFIG: LoggerOptions = {
   base: {
