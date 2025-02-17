@@ -13,6 +13,8 @@ export class EVMIndexer {
   private rpcs: string[] = [];
   private name: string;
   private logger: Logger;
+  private latestBlock = 0n;
+  private client: ReturnType<typeof createPublicClient> | undefined;
 
   constructor(_name: string, _config: IndexerConfig) {
     this.name = _name;
@@ -22,32 +24,43 @@ export class EVMIndexer {
       base: { ...LOGGER_CONFIG.base, indexer: this.name },
     });
     this.initializer = new Initializer(this.logger, this.config);
+
+    const init = this.initializer.initialize();
+    if (!init) {
+      this.logger.error(`Could not initialize the indexer`);
+      return;
+    }
+
+    //RPCs from the initializer are already aggregated with config and de-duplicated
+    this.rpcs = init.rpcs;
+
+    if (this.rpcs.length === 0) {
+      this.logger.error(`An indexer cannot be initialized with 0 RPC`);
+      return;
+    }
+
+    this.client = createPublicClient({
+      transport: http(this.rpcs[0]),
+    });
+
+    //A chain is not mandatory as it is still possible to index chain not existing in viem's data
+    this.chain = init.chain;
   }
 
   async start() {
-    const init = this.initializer.initialize();
-    if (!init) {
-      this.logger.warn(`Indexer is sleeping`);
+    if (!this.client) {
+      this.logger.error(
+        `Indexer cannot be started as it is not correctly initialized`
+      );
       return;
     }
-    this.rpcs = [...(this.config.rpcs || []), ...init.rpcs];
-
-    if (this.rpcs.length > 1) {
-      //Remove duplicate RPC if any
-      this.rpcs = this.rpcs.filter((rpc, i) => i === this.rpcs.indexOf(rpc));
-    }
-    this.chain = init.chain;
     this.logger.info(
       `Starting to work on chain #${this.config.chain_id} ${
         this.chain?.name ? `(${this.chain.name})` : ""
       } with ${this.rpcs.length} RPCs`
     );
 
-    const client = createPublicClient({
-      transport: http(this.rpcs[0]),
-    });
-
-    const b = await client.getBlockNumber();
-    this.logger.info(`Last block: ${b}`);
+    this.latestBlock = await this.client.getBlockNumber();
+    this.logger.info(`Last block: ${this.latestBlock}`);
   }
 }
