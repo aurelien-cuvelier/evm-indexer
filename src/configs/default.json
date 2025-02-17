@@ -1,3 +1,4 @@
 {
-  "chain_id": 1
+  "chain_id": 1,
+  "events": true
 }
