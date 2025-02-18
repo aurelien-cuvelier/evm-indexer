@@ -4,10 +4,14 @@
  */
 
 export interface IndexerConfig {
-  chain_id: number;
+  chainId: number;
   events: boolean;
+  eventsOptions?: EventsOptions;
   name?: string;
-  from_block?: number;
-  to_block?: number;
   rpcs?: string[];
+}
+
+interface EventsOptions {
+  fromBlock?: number;
+  toBlock?: number;
 }

@@ -4,17 +4,18 @@ import { IndexerConfig } from "../../configs/models";
 import { IInitializer } from "../interfaces/initializer";
 
 export class Initializer implements IInitializer {
+  moduleName = "Initializer";
   private config: IndexerConfig;
   private logger: Logger;
 
   constructor(_logger: Logger, _config: IndexerConfig) {
     this.config = _config;
-    this.logger = _logger;
+    this.logger = _logger.child({ module: this.moduleName });
   }
   initialize() {
     try {
       const chain = Object.values(chains).find(
-        (viemChain) => viemChain.id === this.config.chain_id
+        (viemChain) => viemChain.id === this.config.chainId
       );
       const rpcs = [] as string[];
 
@@ -28,7 +29,7 @@ export class Initializer implements IInitializer {
 
       if (rpcs.length === 0) {
         this.logger.fatal(
-          `Could not find RPC for chain id #${this.config.chain_id}. Check that it is valid or add your own RPCs in the config file.`
+          `Could not find RPC for chain id #${this.config.chainId}. Check that it is valid or add your own RPCs in the config file.`
         );
         return null;
       }

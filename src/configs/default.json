@@ -1,6 +1,6 @@
 [
   {
-    "chain_id": 1,
+    "chainId": 1,
     "events": true,
     "name": "chadexer"
   }
