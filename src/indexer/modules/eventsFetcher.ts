@@ -18,7 +18,7 @@ export class EventsFetcher implements IEventsFetcher {
   private rpcDispenser: () => string;
   private eventsReceiverCallback?: (events: EventLog[]) => Promise<void>;
   private newestCanonicalBlock = 0n;
-  private workSyncronizer: IWorkSynchronizer;
+  private workSynchronizer: IWorkSynchronizer;
 
   constructor(
     _logger: Logger,
@@ -28,7 +28,7 @@ export class EventsFetcher implements IEventsFetcher {
     this.logger = _logger.child({ module: this.moduleName });
     this.newestCanonicalBlock = _newestCanonicalBlock;
     this.rpcDispenser = _rpcDispenser;
-    this.workSyncronizer = new WorkSynchronizer(this.logger);
+    this.workSynchronizer = new WorkSynchronizer(this.logger);
   }
 
   initialize(
@@ -74,7 +74,7 @@ export class EventsFetcher implements IEventsFetcher {
           : this.startBlock + this.blockIncrement;
 
       if (iterationFromBlock > this.newestCanonicalBlock) {
-        this.workSyncronizer.pauseWork(
+        this.workSynchronizer.pauseWork(
           WorkSynchronizerPauseReasons.WAITING_NEW_CANONICAL_BLOCK
         );
         return [];
@@ -133,8 +133,8 @@ export class EventsFetcher implements IEventsFetcher {
         break;
       }
 
-      if (this.workSyncronizer.paused) {
-        await this.workSyncronizer.pausePromise;
+      if (this.workSynchronizer.paused) {
+        await this.workSynchronizer.pausePromise;
       }
 
       const events = await this.fetch();
