@@ -3,8 +3,10 @@ import { createPublicClient, http } from "viem";
 import { Chain } from "viem/chains";
 import { IndexerConfig } from "../configs/models";
 import { globalLogger } from "../logger";
+import { IBlockFeed } from "./interfaces/blockFeed";
 import { IEventsFetcher } from "./interfaces/eventsFetcher";
 import { IInitializer } from "./interfaces/initializer";
+import { BlockFeed } from "./modules/blockFeed";
 import { EventsFetcher } from "./modules/eventsFetcher";
 import { Initializer } from "./modules/initializer";
 
@@ -15,11 +17,12 @@ export class EVMIndexer {
   private name: string;
   private logger: Logger;
   private latestBlock = 0n;
-  private client!: ReturnType<typeof createPublicClient>;
+  private web3Client!: ReturnType<typeof createPublicClient>;
   private indexerTasks: Promise<any>[] = [];
 
   //Mandatory modules
   private initializer: IInitializer;
+  private _blockFeed!: IBlockFeed;
 
   //Optionnal modules
   private eventsFetcher!: IEventsFetcher;
@@ -47,9 +50,11 @@ export class EVMIndexer {
       return;
     }
 
-    this.client = createPublicClient({
+    this.web3Client = createPublicClient({
       transport: http(this.rpcs[0]),
     });
+
+    this._blockFeed = new BlockFeed(this.config, this.logger, this.web3Client);
 
     //A chain is not mandatory as it is still possible to index chain not existing in viem's data
     this.chain = init.chain;
@@ -60,7 +65,7 @@ export class EVMIndexer {
   }
 
   async start() {
-    if (!this.client) {
+    if (!this.web3Client) {
       this.logger.error(
         `Indexer cannot be started as it is not correctly initialized`
       );
@@ -72,8 +77,7 @@ export class EVMIndexer {
       } with ${this.rpcs.length} RPCs`
     );
 
-    this.latestBlock = await this.client.getBlockNumber();
-    this.logger.info(`Last block: ${this.latestBlock}`);
+    await this._blockFeed.initialize();
 
     if (this.config.events) {
       this.eventsFetcher = new EventsFetcher(
@@ -82,7 +86,9 @@ export class EVMIndexer {
         this.rpcDispenser
       );
       this.eventsFetcher.initialize(
-        BigInt(this.config?.eventsOptions?.fromBlock || 0),
+        BigInt(
+          this.config?.eventsOptions?.fromBlock || this.latestBlock - 100n
+        ),
         BigInt(this.config?.eventsOptions?.toBlock || 0),
         10n
       );

@@ -1,7 +1,7 @@
 [
   {
     "chainId": 1,
-    "events": true,
+    "events": false,
     "name": "chadexer"
   }
 ]
