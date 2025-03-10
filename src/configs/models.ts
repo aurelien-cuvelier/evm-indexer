@@ -9,6 +9,8 @@ export interface IndexerConfig {
   eventsOptions?: EventsOptions;
   name?: string;
   rpcs?: string[];
+  storageType: "file";
+  dirName: string;
 }
 
 interface EventsOptions {

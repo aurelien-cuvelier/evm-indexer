@@ -6,9 +6,11 @@ import { globalLogger } from "../logger";
 import { IBlockFeed } from "./interfaces/blockFeed";
 import { IEventsFetcher } from "./interfaces/eventsFetcher";
 import { IInitializer } from "./interfaces/initializer";
+import { IStorageManager } from "./interfaces/storageManager";
 import { BlockFeed } from "./modules/blockFeed";
 import { EventsFetcher } from "./modules/eventsFetcher";
 import { Initializer } from "./modules/initializer";
+import { StorageManagerLocalFile } from "./modules/storageManagerLocalFile";
 
 export class EVMIndexer {
   private config: IndexerConfig;
@@ -23,6 +25,7 @@ export class EVMIndexer {
   //Mandatory modules
   private initializer: IInitializer;
   private _blockFeed!: IBlockFeed;
+  private _storageManager!: IStorageManager;
 
   //Optionnal modules
   private eventsFetcher!: IEventsFetcher;
@@ -60,6 +63,13 @@ export class EVMIndexer {
       this.web3Client,
       this.latestBlock
     );
+
+    if (this.config.storageType === "file") {
+      this._storageManager = new StorageManagerLocalFile(
+        this.logger,
+        this.config
+      );
+    }
 
     //A chain is not mandatory as it is still possible to index chain not existing in viem's data
     this.chain = init.chain;
