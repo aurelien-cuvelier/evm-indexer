@@ -7,6 +7,11 @@ export const INDEXERS = [] as EVMIndexer[];
 
 main();
 
+setInterval(() => {
+  const usage = process.memoryUsage();
+  globalLogger.info(usage, "Memory Usage");
+}, 60_000);
+
 function main() {
   globalLogger.info("New instance started");
 

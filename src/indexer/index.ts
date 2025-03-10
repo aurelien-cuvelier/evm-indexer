@@ -16,7 +16,7 @@ export class EVMIndexer {
   private rpcs: string[] = [];
   private name: string;
   private logger: Logger;
-  private latestBlock = 0n;
+  private latestBlock = 22016557n;
   private web3Client!: ReturnType<typeof createPublicClient>;
   private indexerTasks: Promise<any>[] = [];
 
@@ -54,7 +54,12 @@ export class EVMIndexer {
       transport: http(this.rpcs[0]),
     });
 
-    this._blockFeed = new BlockFeed(this.config, this.logger, this.web3Client);
+    this._blockFeed = new BlockFeed(
+      this.config,
+      this.logger,
+      this.web3Client,
+      this.latestBlock
+    );
 
     //A chain is not mandatory as it is still possible to index chain not existing in viem's data
     this.chain = init.chain;
@@ -83,17 +88,17 @@ export class EVMIndexer {
       this.eventsFetcher = new EventsFetcher(
         this.logger,
         this.latestBlock,
-        this.rpcDispenser
+        this.rpcDispenser,
+        this._blockFeed
       );
       this.eventsFetcher.initialize(
-        BigInt(
-          this.config?.eventsOptions?.fromBlock || this.latestBlock - 100n
-        ),
+        BigInt(this.config?.eventsOptions?.fromBlock || this.latestBlock),
         BigInt(this.config?.eventsOptions?.toBlock || 0),
         10n
       );
       this.indexerTasks.push(this.eventsFetcher.start());
     }
+    await this._blockFeed.start();
     await Promise.all(this.indexerTasks);
     this.logger.warn(`Indexer is not running any task!`);
   }

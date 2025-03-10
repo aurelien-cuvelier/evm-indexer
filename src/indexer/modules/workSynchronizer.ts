@@ -21,6 +21,18 @@ export class WorkSynchronizer implements IWorkSynchronizer {
       this.logger.info(`Resuming after ${this.pauseReason}`);
       this.paused = false;
       this.resume();
+      return;
+    }
+
+    this.logger.error(`NOT PAUSED!`);
+  }
+
+  changePauseReason(newReason: WorkSynchronizerPauseReasons) {
+    if (this.paused) {
+      this.logger.info(
+        `Changing pose reason from ${this.pauseReason} to ${newReason}`
+      );
+      this.pauseReason = newReason;
     }
   }
 

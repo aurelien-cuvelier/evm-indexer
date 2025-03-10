@@ -20,6 +20,5 @@ export interface IEventsFetcher extends IBasicModule {
     blockIncrement: bigint,
     eventsReceiverCallback?: (events: EventLog[]) => Promise<void>
   ): void;
-  newestCanonicalBlockUpdater(block: bigint): void;
   start(): Promise<void>;
 }
