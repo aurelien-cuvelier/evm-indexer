@@ -1,15 +1,26 @@
+import { MinimalBlock } from "../modules/blockFeed";
 import { IBasicModule } from "./basicModule";
 import { EventLog } from "./eventsFetcher";
 
-export interface LocalStorageManagerCache {
-  //All these blocks shoud already be processed
-  eventsLastBlock: string;
-  transactionsLastBlock: string;
-  internalTransactionsLastBlock: string;
+interface BlockCache {
+  blockNumber: bigint;
+  blockHash: `0x${string}`;
 }
 
+export interface StorageManagerCache {
+  //All these blocks shoud already be processed
+  eventsLastBlock: BlockCache;
+  transactionsLastBlock: BlockCache;
+  internalTransactionsLastBlock: BlockCache;
+}
+
+type DataReceiverPayload =
+  | { type: "events"; data: EventLog[] }
+  | { type: "blocks"; data: MinimalBlock[] };
+
 export interface IStorageManager extends IBasicModule {
-  eventsReceiver(events: EventLog[]): void;
+  dataReceiver(payload: DataReceiverPayload): Promise<void>;
   updateStorageCache(): void;
-  getStorageCache(): LocalStorageManagerCache;
+  getStorageCache(): StorageManagerCache;
+  closeAllStream(): void;
 }

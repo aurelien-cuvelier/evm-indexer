@@ -21,11 +21,12 @@ export class EVMIndexer {
   private latestBlock = 22016557n;
   private web3Client!: ReturnType<typeof createPublicClient>;
   private indexerTasks: Promise<any>[] = [];
+  storageCache!: ReturnType<IStorageManager["getStorageCache"]>;
 
   //Mandatory modules
   private initializer: IInitializer;
   private _blockFeed!: IBlockFeed;
-  private _storageManager!: IStorageManager;
+  storageManager!: IStorageManager;
 
   //Optionnal modules
   private eventsFetcher!: IEventsFetcher;
@@ -65,7 +66,7 @@ export class EVMIndexer {
     );
 
     if (this.config.storageType === "file") {
-      this._storageManager = new StorageManagerLocalFile(
+      this.storageManager = new StorageManagerLocalFile(
         this.logger,
         this.config
       );
@@ -104,7 +105,8 @@ export class EVMIndexer {
       this.eventsFetcher.initialize(
         BigInt(this.config?.eventsOptions?.fromBlock || this.latestBlock),
         BigInt(this.config?.eventsOptions?.toBlock || 0),
-        10n
+        10n,
+        this.storageManager.dataReceiver.bind(this.storageManager)
       );
       this.indexerTasks.push(this.eventsFetcher.start());
     }

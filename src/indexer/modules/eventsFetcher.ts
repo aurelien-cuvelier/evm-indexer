@@ -7,6 +7,7 @@ import {
   IBlockFeed,
 } from "../interfaces/blockFeed";
 import { EventLog, IEventsFetcher } from "../interfaces/eventsFetcher";
+import { IStorageManager } from "../interfaces/storageManager";
 import {
   IWorkSynchronizer,
   WorkSynchronizerPauseReasons,
@@ -21,7 +22,7 @@ export class EventsFetcher implements IEventsFetcher {
   private logger: Logger;
   private initialized = false;
   private rpcDispenser: () => string;
-  private eventsReceiverCallback?: (events: EventLog[]) => Promise<void>;
+  private _dataReceiverCallback?: IStorageManager["dataReceiver"];
   private newestCanonicalBlock = 0n;
   private workSynchronizer: IWorkSynchronizer;
   blockFeed: IBlockFeed;
@@ -48,14 +49,17 @@ export class EventsFetcher implements IEventsFetcher {
     _startBlock: bigint,
     _endBlock: bigint,
     _blockIncrement: bigint,
-    _eventsReceiverCallback: typeof this.eventsReceiverCallback
+    dataReceiverCallback: typeof this._dataReceiverCallback
   ) {
     this.startBlock = _startBlock;
     this.endBlock = _endBlock;
     this.blockIncrement = _blockIncrement;
     this.initialized = true;
 
-    if (!this.eventsReceiverCallback) {
+    this._dataReceiverCallback = dataReceiverCallback;
+
+    if (!this._dataReceiverCallback) {
+      console.log(this._dataReceiverCallback);
       this.logger.warn(
         `The event fetcher was not initialized with a callback for fetched events, therefore they will remain unprocessed.`
       );
@@ -229,8 +233,8 @@ export class EventsFetcher implements IEventsFetcher {
       }
 
       const events = await this.fetch();
-      if (this.eventsReceiverCallback) {
-        await this.eventsReceiverCallback(events);
+      if (this._dataReceiverCallback && events.length) {
+        await this._dataReceiverCallback({ type: "events", data: events });
       }
     }
     this.logger.info(`Event fetcher finished all the work`);

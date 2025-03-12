@@ -8,7 +8,7 @@ import {
   IBlockFeed,
 } from "../interfaces/blockFeed";
 
-interface MinimalBlock {
+export interface MinimalBlock {
   blockNumber: bigint;
   blockHash: `0x${string}`;
   parentHash: `0x${string}`;

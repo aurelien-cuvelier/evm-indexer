@@ -1,16 +1,17 @@
 import { IBasicModule } from "./basicModule";
+import { IStorageManager } from "./storageManager";
 
 export interface EventLog {
   address: string;
-  blockHash: string;
-  blockNumber: string; //hex
-  blockTimestamp: string; //hex
+  blockHash: `0x${string}`;
+  blockNumber: `0x${string}`;
+  blockTimestamp: `0x${string}`;
   data: string;
-  logIndex: string; //hex
+  logIndex: `0x${string}`;
   removed: boolean;
   topics: string[];
   transactionHash: string;
-  transactionIndex: string; //hex
+  transactionIndex: `0x${string}`;
 }
 
 export interface IEventsFetcher extends IBasicModule {
@@ -18,7 +19,7 @@ export interface IEventsFetcher extends IBasicModule {
     startBlock: bigint,
     endBlock: bigint,
     blockIncrement: bigint,
-    eventsReceiverCallback?: (events: EventLog[]) => Promise<void>
+    dataReceiverCallback?: IStorageManager["dataReceiver"]
   ): void;
   start(): Promise<void>;
 }
