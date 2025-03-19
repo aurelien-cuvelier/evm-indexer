@@ -1,5 +1,7 @@
 import { getConfig } from "./config";
 import { EVMIndexer } from "./indexer";
+import { IStorageManager } from "./indexer/interfaces/storageManager";
+import { JsonFileAppendor } from "./jsonFileAppend";
 import { globalLogger } from "./logger";
 import { BACKEND_ID } from "./shared";
 
@@ -12,7 +14,30 @@ setInterval(() => {
   globalLogger.info(usage, "Memory Usage");
 }, 60_000);
 
-function main() {
+async function main() {
+  const filePath = `./data/chadexer-data/events.json`;
+
+  const jsa = new JsonFileAppendor<
+    Parameters<IStorageManager["dataReceiver"]>[0]["data"][number]
+  >(filePath);
+
+  jsa.rollback("blockNumber", (value) => {
+    console.log(
+      `BigInt(${value}) >= BigInt(0x14ff23d): ${
+        BigInt(value) >= BigInt(0x14ff23d)
+      }`
+    );
+    return BigInt(value) >= BigInt(0x14ff23d);
+  });
+
+  // jsa.rollback("blockHash", (value) => {
+  //   return (
+  //     value !==
+  //     "0xde03872e5d3fd49b49fad355311a1a488713efdb4a880bf5503f7d92bb8f69af"
+  //   );
+  // });
+
+  return;
   globalLogger.info("New instance started");
 
   const configs = getConfig();

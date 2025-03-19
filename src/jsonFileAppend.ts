@@ -12,6 +12,7 @@ export class JsonFileAppendor<T> {
   private _filePath: string;
   private _fileDescriptor;
   private _fileStats;
+  private _safeToWrite = true;
 
   //Variables for benchmarking, won't stay
   private _totalBytesWritten = 0;
@@ -54,6 +55,127 @@ export class JsonFileAppendor<T> {
         this._totalBytesWritten / this._totalMsWritting
       ).toFixed()} bytes/ms`
     );
+  }
+
+  rollback<K extends keyof T>(
+    keyToFilter: K,
+    /**
+     * @DEV
+     * The elements for which the return will be true will be truncated
+     * The truncate process stops when THE FIRST element returning false is met
+     */
+    shoudDelete: (value: T[K]) => boolean
+  ): void {
+    /**
+     * @DEV
+     * Since this should work with any type of data, the rollback will search for the first element
+     * in the array for which there is a match with the provided key/value, and then truncate the file
+     * from this index and close the array back again with a "]". This implies that you array should be ordered.
+     * This is async since we will use a stream
+     */
+
+    this._safeToWrite = false;
+
+    let chunkSize = 1024; //mutable because of the last element which probably wont fill the whole chunk
+    const buffer = Buffer.alloc(chunkSize, undefined, "utf8");
+    let position = this._fileStats.size;
+
+    let nestLevel = 0;
+    let lastRowSeperatorIndex = 0;
+    let totalReadBytes = 0;
+    while (true) {
+      if (lastRowSeperatorIndex) {
+        position -= lastRowSeperatorIndex;
+      }
+
+      if (position - chunkSize < 0) {
+        buffer.fill(0);
+        chunkSize = position;
+      }
+      const readFromPosition = position - chunkSize;
+
+      console.log(
+        `read position: ${readFromPosition} 0x${readFromPosition.toString(
+          16
+        )}  chunk size: ${chunkSize} 0x${chunkSize.toString(16)}`
+      );
+      const readBytes = fs.readSync(
+        this._fileDescriptor,
+        buffer,
+        0,
+        chunkSize,
+        readFromPosition
+      );
+
+      console.log(`=============START OF RAW DATA================`);
+      console.log(buffer.toString("utf-8"));
+      console.log(`=============END OF RAW DATA================`);
+
+      totalReadBytes += readBytes;
+
+      //console.log(`Reading file from: ${}`)
+
+      const elementBuffer = [] as number[];
+      nestLevel = 0;
+      for (let i = buffer.length - 1; i >= 0; i--) {
+        /**
+         * @DEV
+         * Anything where nestLevel > 0 should be added in the buffer
+         *
+         */
+        const byte = buffer[i];
+
+        if (nestLevel === 0 && byte === 0x2c) {
+          //0x22 => ,
+          lastRowSeperatorIndex = buffer.length - i;
+          //lastRowSeperatorIndex += buffer.length - i;
+          console.log(`new lastRowSeperatorIndex: ${lastRowSeperatorIndex}`);
+        }
+
+        if (nestLevel > 0) {
+          elementBuffer.push(byte);
+        }
+
+        if (byte === 0x7d) {
+          //0x7d => }
+          if (nestLevel === 0) {
+            elementBuffer.push(byte);
+          }
+          nestLevel++;
+          continue;
+        }
+
+        if (byte === 0x7b && nestLevel === 1) {
+          //0x7b => {
+          nestLevel--;
+          console.log(`==========PARSED ELEMENT==================`);
+          const parsed = JSON.parse(
+            Buffer.from(elementBuffer.reverse()).toString("utf-8")
+          ) as T;
+          console.log(parsed);
+          const shouldDelete = shoudDelete(parsed[keyToFilter]);
+          console.log(`shouldDelete: ${shouldDelete}`);
+          if (!shouldDelete) {
+            console.log(`Found first element that should not be filtered out!`);
+            return;
+          }
+          elementBuffer.length = 0;
+
+          continue;
+        }
+
+        //console.log(Buffer.from([byte]).toString("utf-8"));
+      }
+
+      if (readFromPosition === 0) {
+        // console.log(
+        //   JSON.parse(Buffer.from(elementBuffer.reverse()).toString("utf-8"))
+        // );
+        console.log(`EOF`);
+        break;
+      }
+      console.log(`========================`);
+    }
   }
 
   private _stringifier(data: object): string {
