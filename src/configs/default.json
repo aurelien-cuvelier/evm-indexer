@@ -2,8 +2,9 @@
   {
     "chainId": 1,
     "rpcs": [
-      "https://0xrpc.io/eth",
+      "https://1rpc.io/eth",
       "https://ethereum-rpc.publicnode.com",
+      "https://0xrpc.io/eth",
       "https://1rpc.io/eth"
     ],
     "events": true,

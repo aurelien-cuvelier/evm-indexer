@@ -18,7 +18,7 @@ export class EVMIndexer {
   private rpcs: string[] = [];
   private name: string;
   private logger: Logger;
-  private latestBlock = 22016557n;
+  private latestBlock = 22107592n;
   private web3Client!: ReturnType<typeof createPublicClient>;
   private indexerTasks: Promise<any>[] = [];
   storageCache!: ReturnType<IStorageManager["getStorageCache"]>;

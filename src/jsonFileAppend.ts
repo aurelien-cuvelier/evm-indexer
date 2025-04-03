@@ -8,6 +8,16 @@ import fs from "fs";
  * A stringifier should be able to passed in constructor
  */
 
+enum JSONSymbols {
+  OBJECT_START = 0x7b, //{
+  OBJECT_END = 0x7d, //}
+  STRING_START = 0x22, //"
+  STRING_END = 0x22, //"
+  ARRAY_START = 0x5b, //[
+  ARRAY_END = 0x5d, //]
+  COMMA = 0x2c, //,
+}
+
 export class JsonFileAppendor<T> {
   private _filePath: string;
   private _fileDescriptor;
@@ -35,7 +45,8 @@ export class JsonFileAppendor<T> {
       );
     } else {
       //If the file is not empty we move the pointer one byte left
-      fs.ftruncateSync(this._fileDescriptor, this._fileStats.size - 1);
+      //fs.ftruncateSync(this._fileDescriptor, this._fileStats.size - 1);
+      this._truncateFile(this._fileDescriptor, this._fileStats.size - 1);
 
       const comma = this._fileStats.size > 2 ? `,` : "";
       bytesWritten = fs.writeSync(
@@ -57,134 +68,206 @@ export class JsonFileAppendor<T> {
     );
   }
 
-  rollback<K extends keyof T>(
+  private _truncateFile(fd: number, len?: number | null) {
+    fs.ftruncateSync(fd, len);
+    //fs.writeSync(this._fileDescriptor, "]");
+  }
+
+  private _readChunk() {}
+
+  rollback2<K extends keyof T>(
     keyToFilter: K,
-    /**
-     * @DEV
-     * The elements for which the return will be true will be truncated
-     * The truncate process stops when THE FIRST element returning false is met
-     */
     shoudDelete: (value: T[K]) => boolean
   ): void {
-    /**
-     * @DEV
-     * Since this should work with any type of data, the rollback will search for the first element
-     * in the array for which there is a match with the provided key/value, and then truncate the file
-     * from this index and close the array back again with a "]". This implies that you array should be ordered.
-     * This is async since we will use a stream
-     */
-
     this._safeToWrite = false;
+    let chunkSize = 1e7; //1MB mutable because of the last chunk to read which probably wont fill the whole initial chunk size
 
-    let chunkSize = 1024; //mutable because of the last element which probably wont fill the whole chunk
+    if (chunkSize > this._fileStats.size) {
+      chunkSize = this._fileStats.size;
+    }
+
     const buffer = Buffer.alloc(chunkSize, undefined, "utf8");
     let position = this._fileStats.size;
-
-    let nestLevel = 0;
-    let lastRowSeperatorIndex = 0;
+    let readFromPosition = position;
     let totalReadBytes = 0;
-    while (true) {
-      if (lastRowSeperatorIndex) {
-        position -= lastRowSeperatorIndex;
+    let totalParsedElements = 0;
+
+    let globalArrayDepth = 0;
+    //let globalObjectDepth = 0;
+    //let globalStringDepth = 0;
+    let lastClosingCommaByteOffset = 0;
+
+    let realReadPosition = readFromPosition - chunkSize;
+
+    const start = Date.now();
+    console.log("STARTING");
+    do {
+      let elemArrayDepth = 0;
+      let elemObjectDepth = 0;
+      let elemInString = false;
+
+      const elementBuffer = [] as number[];
+
+      realReadPosition = readFromPosition - chunkSize;
+
+      if (readFromPosition - chunkSize < 0) {
+        console.log("CHUNK SIZE TO ZERO");
+        chunkSize = readFromPosition;
+        realReadPosition = 0;
       }
 
-      if (position - chunkSize < 0) {
-        buffer.fill(0);
-        chunkSize = position;
-      }
-      const readFromPosition = position - chunkSize;
-
-      console.log(
-        `read position: ${readFromPosition} 0x${readFromPosition.toString(
-          16
-        )}  chunk size: ${chunkSize} 0x${chunkSize.toString(16)}`
-      );
       const readBytes = fs.readSync(
         this._fileDescriptor,
         buffer,
         0,
         chunkSize,
-        readFromPosition
+        realReadPosition
       );
 
-      console.log(`=============START OF RAW DATA================`);
-      console.log(buffer.toString("utf-8"));
-      console.log(`=============END OF RAW DATA================`);
+      // console.log("RAW READ BYTES:");
+      // console.log(buffer.toString());
+      // console.log("===========================================");
 
-      totalReadBytes += readBytes;
-
-      //console.log(`Reading file from: ${}`)
-
-      const elementBuffer = [] as number[];
-      nestLevel = 0;
-      for (let i = buffer.length - 1; i >= 0; i--) {
-        /**
-         * @DEV
-         * Anything where nestLevel > 0 should be added in the buffer
-         *
-         */
+      let parsedElement = false;
+      for (let i = readBytes - 1; i >= 0; i--) {
         const byte = buffer[i];
+        //console.log(Buffer.from([byte]).toString());
 
-        if (nestLevel === 0 && byte === 0x2c) {
-          //0x22 => ,
-          lastRowSeperatorIndex = buffer.length - i;
-          //lastRowSeperatorIndex += buffer.length - i;
-          console.log(`new lastRowSeperatorIndex: ${lastRowSeperatorIndex}`);
+        if (byte === JSONSymbols.STRING_END) {
+          /**
+           * @DEV
+           * Valid for both keys/values but not important here, the point is not to count some symbols
+           * as delimiters of an array/object if they are inside of a string.
+           */
+
+          elemInString = !elemInString;
         }
 
-        if (nestLevel > 0) {
+        if (elemInString) {
+          /**
+           * @DEV Anything inside of a string should be pushed to the buffer, but any JSON symbol inside
+           * of a string should not be considered as a JSON symbol
+           */
           elementBuffer.push(byte);
+          continue;
         }
 
-        if (byte === 0x7d) {
-          //0x7d => }
-          if (nestLevel === 0) {
+        switch (byte) {
+          case JSONSymbols.ARRAY_END: {
+            globalArrayDepth++;
+
+            if (globalArrayDepth === 1) {
+              break;
+            }
+
+            elemArrayDepth++;
+            elementBuffer.push(byte);
+            break;
+          }
+
+          case JSONSymbols.ARRAY_START: {
+            globalArrayDepth--;
+
+            if (globalArrayDepth === 0) {
+              lastClosingCommaByteOffset =
+                this._fileStats.size - (totalReadBytes + (readBytes - i));
+
+              // console.log(
+              //   `lastClosingCommaByteOffset: ${lastClosingCommaByteOffset}`
+              // );
+
+              parsedElement = true;
+
+              break;
+            }
+            elemArrayDepth--;
+            elementBuffer.push(byte);
+            break;
+          }
+
+          case JSONSymbols.OBJECT_END: {
+            elemObjectDepth++;
+            //globalObjectDepth++;
+            elementBuffer.push(byte);
+            break;
+          }
+
+          case JSONSymbols.OBJECT_START: {
+            elemObjectDepth--;
+            //globalObjectDepth--;
+            elementBuffer.push(byte);
+
+            break;
+          }
+
+          case JSONSymbols.COMMA: {
+            if (elemObjectDepth > 0) {
+              elementBuffer.push(byte);
+              break;
+            }
+
+            lastClosingCommaByteOffset =
+              this._fileStats.size - (totalReadBytes + (readBytes - i));
+
+            // console.log(
+            //   `lastClosingCommaByteOffset: ${lastClosingCommaByteOffset}`
+            // );
+
+            parsedElement = true;
+
+            break;
+          }
+
+          default: {
             elementBuffer.push(byte);
           }
-          nestLevel++;
-          continue;
         }
 
-        if (byte === 0x7b && nestLevel === 1) {
-          //0x7b => {
-          nestLevel--;
-          console.log(`==========PARSED ELEMENT==================`);
-          const parsed = JSON.parse(
-            Buffer.from(elementBuffer.reverse()).toString("utf-8")
-          ) as T;
-          console.log(parsed);
-          const shouldDelete = shoudDelete(parsed[keyToFilter]);
-          console.log(`shouldDelete: ${shouldDelete}`);
-          if (!shouldDelete) {
-            console.log(`Found first element that should not be filtered out!`);
-            return;
-          }
+        if (parsedElement) {
+          elementBuffer.reverse();
+          const stringified = Buffer.from(elementBuffer).toString("utf-8");
+
+          // console.log(`Trying to parse:`);
+          // console.log(stringified);
+          const parsed = JSON.parse(stringified);
+          // Buffer.from(elementBuffer.reverse()).toString("utf-8");
+          // elementBuffer.reverse();
+
+          //console.log(parsed);
           elementBuffer.length = 0;
-
-          continue;
+          totalParsedElements++;
+          parsedElement = false;
         }
-
-        //console.log(Buffer.from([byte]).toString("utf-8"));
       }
 
-      if (readFromPosition === 0) {
-        // console.log(
-        //   JSON.parse(Buffer.from(elementBuffer.reverse()).toString("utf-8"))
-        // );
-        console.log(`EOF`);
-        break;
-      }
-      console.log(`========================`);
-    }
+      globalArrayDepth -= elemArrayDepth;
+      readFromPosition = lastClosingCommaByteOffset;
+
+      //totalReadBytes += readBytes;
+      totalReadBytes = this._fileStats.size - lastClosingCommaByteOffset;
+    } while (realReadPosition > 0);
+
+    console.log(`DONE IN ${(Date.now() - start) / 1000} s`);
+    console.log(`Went through ${totalParsedElements} elements`);
   }
 
-  private _stringifier(data: object): string {
-    return JSON.stringify(data, (_, value) => {
-      if (typeof value === "bigint") {
-        return "0x" + value.toString(16);
-      }
+  // console.log(`bufferObjectDepth: ${bufferObjectDepth}`);
+  // console.log(Buffer.from(elementBuffer.reverse()).toString());
+  // elementBuffer.reverse();
 
-      return value;
-    });
+  getLastElement() {}
+
+  private _stringifier(data: object): string {
+    return JSON.stringify(
+      data,
+      (_, value) => {
+        if (typeof value === "bigint") {
+          return "0x" + value.toString(16);
+        }
+
+        return value;
+      },
+      "\t"
+    );
   }
 }

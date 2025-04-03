@@ -21,13 +21,13 @@ async function main() {
     Parameters<IStorageManager["dataReceiver"]>[0]["data"][number]
   >(filePath);
 
-  jsa.rollback("blockNumber", (value) => {
+  jsa.rollback2("blockNumber", (value) => {
     console.log(
-      `BigInt(${value}) >= BigInt(0x14ff23d): ${
-        BigInt(value) >= BigInt(0x14ff23d)
+      `BigInt(${value}) >= BigInt(0x15155c9): ${
+        BigInt(value) >= BigInt(0x15155c9)
       }`
     );
-    return BigInt(value) >= BigInt(0x14ff23d);
+    return BigInt(value) >= BigInt(0x15155c9);
   });
 
   // jsa.rollback("blockHash", (value) => {
